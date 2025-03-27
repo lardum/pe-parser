@@ -1,6 +1,5 @@
 ﻿using System.Buffers.Binary;
 using System.Text;
-using System.Text.Json;
 
 var bytes = File.ReadAllBytes("../HelloWorld.dll");
 var cursor = 0;
@@ -33,17 +32,26 @@ for (var i = 0; i < numberOfSections; i++)
     sectionHeaders[i] = new SectionHeader(name, virtualAddress, pointerToRawData);
 }
 
-Console.WriteLine(JsonSerializer.Serialize(sectionHeaders));
+var cliHeaderOffset = RvaToFileOffset(clrRuntimeHeaderRva);
+cursor = cliHeaderOffset;
+
+// II.25.3.3 CLI header
+Advance(8);
+var metadataRva = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
+Advance(52); // Advance to the end of header
+
+Console.WriteLine(cursor);
 
 return;
 
-uint RvaToFileOffset(uint rva)
+int RvaToFileOffset(uint rva)
 {
-    foreach (var (_, virtualAddress, pointerToRawData) in sectionHeaders)
+    foreach (var section in sectionHeaders)
     {
+        var virtualAddress = section.VirtualAddress;
         if (rva >= virtualAddress && rva < virtualAddress + virtualAddress)
         {
-            return (uint)(pointerToRawData + (rva - virtualAddress));
+            return (int)(section.PointerToRawData + (rva - virtualAddress));
         }
     }
 

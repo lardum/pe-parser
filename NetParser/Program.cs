@@ -1,4 +1,6 @@
 ﻿using System.Buffers.Binary;
+using System.Text;
+using System.Text.Json;
 
 var bytes = File.ReadAllBytes("../HelloWorld.dll");
 var cursor = 0;
@@ -18,9 +20,35 @@ Advance(112); // Advance to Rva
 var clrRuntimeHeaderRva = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
 Advance(12); // Advance to the end of header
 
+var sectionHeaders = new SectionHeader[numberOfSections];
 // II.25.3 Section headers
+for (var i = 0; i < numberOfSections; i++)
+{
+    var name = Encoding.ASCII.GetString(GetNext(8)).Trim('\0');
+    Advance(4);
+    var virtualAddress = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
+    Advance(4);
+    var pointerToRawData = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
+    Advance(16);
+    sectionHeaders[i] = new SectionHeader(name, virtualAddress, pointerToRawData);
+}
+
+Console.WriteLine(JsonSerializer.Serialize(sectionHeaders));
 
 return;
+
+uint RvaToFileOffset(uint rva)
+{
+    foreach (var (_, virtualAddress, pointerToRawData) in sectionHeaders)
+    {
+        if (rva >= virtualAddress && rva < virtualAddress + virtualAddress)
+        {
+            return (uint)(pointerToRawData + (rva - virtualAddress));
+        }
+    }
+
+    throw new InvalidOperationException($"Could not convert RVA 0x{rva:X8} to file offset");
+}
 
 void Advance(int i = 1) => cursor += i;
 
@@ -30,3 +58,5 @@ byte[] GetNext(int len = 1)
     cursor += len;
     return bts;
 }
+
+record SectionHeader(string Name, uint VirtualAddress, uint PointerToRawData);

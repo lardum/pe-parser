@@ -1,7 +1,7 @@
 ﻿using System.Buffers.Binary;
 using System.Text;
 
-var bytes = File.ReadAllBytes("../HelloWorld.dll");
+var bytes = File.ReadAllBytes("./HelloWorld.dll");
 var cursor = 0;
 
 // II.25.2.1 MS-DOS header

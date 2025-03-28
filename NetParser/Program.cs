@@ -58,26 +58,45 @@ Advance(16);
 // of four.
 var versionOffset = cursor;
 // UTF8-encoded null-terminated version string of length m (see above)
-var versionEndOffset = versionOffset;
-while (bytes[versionEndOffset] != 0 && versionEndOffset < bytes.Length)
-{
-    versionEndOffset++;
-}
+var versionEndOffset = MoveToNextZero(versionOffset);
 
-var offset = versionOffset + versionEndOffset - cursor;
-cursor = (offset + 3) & ~3; // Align a number to the next multiple of 4
+var currentOffset = versionOffset + versionEndOffset - cursor;
+cursor = (currentOffset + 3) & ~3; // Align a number to the next multiple of 4
 
 Advance(2);
 var numberOfStreams = BinaryPrimitives.ReadUInt16LittleEndian(GetNext(2));
 
-for (var i = 0; i < numberOfSections; i++)
+// II.24.2.2 Stream header
+var streamHeaders = new StreamHeader[numberOfStreams];
+for (var i = 0; i < numberOfStreams; i++)
 {
-    Advance(4);
+    var streamOffset = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
+    var size = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
+
+    // Read stream name (null-terminated)
+    var nameOffset = cursor;
+    var nameEndOffset = MoveToNextZero(nameOffset);
+    var name = Encoding.ASCII.GetString(GetNext(nameEndOffset - nameOffset));
+    var fileOffset = RvaToFileOffset(metadataRva + streamOffset);
+    streamHeaders[i] = new StreamHeader(size, name, fileOffset);
+
+    currentOffset = nameEndOffset + 1;
+    cursor = (currentOffset + 3) & ~3; // Align a number to the next multiple of 4
 }
 
 Console.WriteLine(cursor);
 
 return;
+
+int MoveToNextZero(int index)
+{
+    while (bytes[index] != 0 && index < bytes.Length)
+    {
+        index++;
+    }
+
+    return index;
+}
 
 int RvaToFileOffset(uint rva)
 {
@@ -104,4 +123,4 @@ byte[] GetNext(int len = 1)
 
 record SectionHeader(string Name, uint VirtualAddress, uint PointerToRawData);
 
-record StreamHeader(uint Size, string Name);
+record StreamHeader(uint Size, string Name, int FileOffset);

@@ -40,6 +40,41 @@ Advance(8);
 var metadataRva = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
 Advance(52); // Advance to the end of header
 
+var metadataOffset = RvaToFileOffset(metadataRva);
+cursor = metadataOffset;
+
+// I.24.2.1 Metadata root
+// Signature
+// MajorVersion
+// MinorVersion
+// Reserved
+// Length
+Advance(16);
+
+// Number of bytes allocated to hold version string (including
+// null terminator), call this x.
+// Call the length of the string (including the terminator) m (we
+// require m <= 255); the length x is m rounded up to a multiple
+// of four.
+var versionOffset = cursor;
+// UTF8-encoded null-terminated version string of length m (see above)
+var versionEndOffset = versionOffset;
+while (bytes[versionEndOffset] != 0 && versionEndOffset < bytes.Length)
+{
+    versionEndOffset++;
+}
+
+var offset = versionOffset + versionEndOffset - cursor;
+cursor = (offset + 3) & ~3; // Align a number to the next multiple of 4
+
+Advance(2);
+var numberOfStreams = BinaryPrimitives.ReadUInt16LittleEndian(GetNext(2));
+
+for (var i = 0; i < numberOfSections; i++)
+{
+    Advance(4);
+}
+
 Console.WriteLine(cursor);
 
 return;
@@ -68,3 +103,5 @@ byte[] GetNext(int len = 1)
 }
 
 record SectionHeader(string Name, uint VirtualAddress, uint PointerToRawData);
+
+record StreamHeader(uint Size, string Name);

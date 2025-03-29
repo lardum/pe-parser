@@ -123,6 +123,28 @@ for (var i = 0; i < typeRefRowCount; i++)
     Advance(tableIndexSize1A + stringHeapSize * 2);
 }
 
+// II.22.37 TypeDef : 0x02
+var typeDefRowCount = rowCounts[0x02]; // Get number of TypeDefs
+var typeDefExtendsSize = GetTableIndexSize(0x01); // TypeRef Table size (for Extends column)
+var fieldTableIndexSize = GetTableIndexSize(0x04); // Field Table index size
+for (var i = 0; i < typeDefRowCount; i++)
+{
+    // Flags, TypeName, Typenamespace, Extends, TypDefOrRef, FieldList
+    Advance(4 + 2 * stringHeapSize + typeDefExtendsSize + fieldTableIndexSize);
+}
+
+// II.22.26 MethodDef : 0x06
+var blobHeapSize = GetHeapIndexSize("Blob");
+var methodDefRowCount = rowCounts[0x06]; // Number of methods
+var methodDefTable = new MethodDef[methodDefRowCount];
+for (var i = 0; i < methodDefRowCount; i++)
+{
+    var rva = BinaryPrimitives.ReadUInt32BigEndian(GetNext(4));
+    methodDefTable[i] = new MethodDef(rva);
+    // ImplFlags, Flags, Name, Signature, ParamList
+    Advance(2 + 2 + stringHeapSize + blobHeapSize + 2);
+}
+
 Console.WriteLine(cursor);
 
 return;
@@ -185,3 +207,5 @@ record SectionHeader(string Name, uint VirtualAddress, uint PointerToRawData);
 record StreamHeader(uint Size, string Name, int FileOffset);
 
 record Stream(byte HeapOfSetSizes, int MaskValid);
+
+record MethodDef(uint Rva);

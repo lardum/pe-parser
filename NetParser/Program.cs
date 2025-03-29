@@ -1,7 +1,13 @@
 ﻿using System.Buffers.Binary;
 using System.Text;
+using NetParser;
 
-var bytes = File.ReadAllBytes("./HelloWorld.dll");
+const string path = "./HelloWorld.dll";
+
+var extractor = new ExtractPeByteCode(path);
+extractor.PrintIlBytecode();
+
+var bytes = File.ReadAllBytes(path);
 var cursor = 0;
 
 // II.25.2.1 MS-DOS header
@@ -167,8 +173,8 @@ foreach (var method in methodDefTable)
     }
 
     var methodEnd = codeOffset + codeSize;
-    var ilString = string.Join("", bytes.Skip((int)codeOffset).Take((int)(methodEnd - codeOffset)).Select(x => x.ToString("X")));
-    Console.WriteLine(BitConverter.ToString(bytes.Skip((int)codeOffset).Take((int)(methodEnd - codeOffset)).ToArray()));
+    var ilString = BitConverter.ToString(bytes.Skip((int)codeOffset).Take((int)(methodEnd - codeOffset)).ToArray());
+    Console.WriteLine(ilString);
 }
 
 return;

@@ -139,13 +139,37 @@ var methodDefRowCount = rowCounts[0x06]; // Number of methods
 var methodDefTable = new MethodDef[methodDefRowCount];
 for (var i = 0; i < methodDefRowCount; i++)
 {
-    var rva = BinaryPrimitives.ReadUInt32BigEndian(GetNext(4));
+    var rva = BinaryPrimitives.ReadUInt32LittleEndian(GetNext(4));
     methodDefTable[i] = new MethodDef(rva);
     // ImplFlags, Flags, Name, Signature, ParamList
     Advance(2 + 2 + stringHeapSize + blobHeapSize + 2);
 }
 
-Console.WriteLine(cursor);
+// Extract IL
+var codeSection = sectionHeaders.First(x => x.Name == ".text");
+foreach (var method in methodDefTable)
+{
+    var fileOffset = method.Rva - codeSection.VirtualAddress + codeSection.PointerToRawData;
+    var firstByte = bytes[fileOffset];
+    var isTinyHeader = (firstByte & 0x3) == 0x2;
+    var isFatHeader = (firstByte & 0x3) == 0x3;
+    var codeSize = 0;
+    if (isTinyHeader)
+    {
+        codeSize = (firstByte >> 2); // Upper 6 bits store size
+    }
+
+    var codeOffset = fileOffset + 1;
+
+    if (isFatHeader)
+    {
+        codeSize = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan((int)(codeOffset + 4)));
+    }
+
+    var methodEnd = codeOffset + codeSize;
+    var ilString = string.Join("", bytes.Skip((int)codeOffset).Take((int)(methodEnd - codeOffset)).Select(x => x.ToString("X")));
+    Console.WriteLine(BitConverter.ToString(bytes.Skip((int)codeOffset).Take((int)(methodEnd - codeOffset)).ToArray()));
+}
 
 return;
 

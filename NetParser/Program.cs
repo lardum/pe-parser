@@ -84,9 +84,68 @@ for (var i = 0; i < numberOfStreams; i++)
     cursor = (currentOffset + 3) & ~3; // Align a number to the next multiple of 4
 }
 
+var hashStream = streamHeaders.FirstOrDefault(x => x.Name == "#~");
+if (hashStream is null)
+{
+    return;
+}
+
+// II.24.2.6 #~ stream (tables header)
+Advance(6);
+var heapOfSetSizes = GetNext().First();
+Advance();
+var maskValid = BinaryPrimitives.ReadUInt64LittleEndian(GetNext(8));
+Advance(8);
+
+// Setting bit by bit, if there is 1 that means the row is set
+var rowCounts = new uint[64];
+for (var i = 0; i < 64; i++)
+{
+    if ((maskValid & (1UL << i)) != 0)
+    {
+        rowCounts[i] = BitConverter.ToUInt32(GetNext(4));
+    }
+}
+
+var stringHeapSize = GetHeapIndexSize("String");
+var guidHeapSize = GetHeapIndexSize("GUID");
+
+// II.22.30 Module : 0x00
+// Generation, Name, Mvid, EncId, EncBaseId
+Advance(2 + stringHeapSize + guidHeapSize * 3);
+
+// II.22.38 TypeRef : 0x01
+var typeRefRowCount = rowCounts[0x01];
+var tableIndexSize1A = GetTableIndexSize(0x1A);
+for (var i = 0; i < typeRefRowCount; i++)
+{
+    // ResolutionScope, TypeName, TypeNamespace
+    Advance(tableIndexSize1A + stringHeapSize * 2);
+}
+
 Console.WriteLine(cursor);
 
 return;
+
+int GetTableIndexSize(int tableId)
+{
+    return ((long)maskValid & (1L << tableId)) != 0 ? 4 : 2;
+}
+
+// The HeapSizes field is a bitvector that encodes the width of indexes into the various heaps. If bit 0 is
+// set, indexes into the “#String” heap are 4 bytes wide; if bit 1 is set, indexes into the “#GUID” heap are
+// 4 bytes wide; if bit 2 is set, indexes into the “#Blob” heap are 4 bytes wide. Conversely, if the
+// HeapSize bit for a particular heap is not set, indexes into that heap are 2 bytes wide
+int GetHeapIndexSize(string heapType)
+{
+    return heapType switch
+    {
+        "String" => (heapOfSetSizes & 0x01) != 0 ? 4 : 2,
+        "GUID" => (heapOfSetSizes & 0x02) != 0 ? 4 : 2,
+        "Blob" => (heapOfSetSizes & 0x04) != 0 ? 4 : 2,
+        _ => throw new ArgumentException("Invalid heap type")
+    };
+}
 
 int MoveToNextZero(int index)
 {
@@ -124,3 +183,5 @@ byte[] GetNext(int len = 1)
 record SectionHeader(string Name, uint VirtualAddress, uint PointerToRawData);
 
 record StreamHeader(uint Size, string Name, int FileOffset);
+
+record Stream(byte HeapOfSetSizes, int MaskValid);
